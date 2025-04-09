@@ -1,12 +1,74 @@
-# handlers.py
+from datetime import datetime
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from database import add_expense, get_total_expenses, get_monthly_expenses
 from utils import format_month_year, calculate_budget_distribution
-
+from database import add_expense_with_date
 # Состояния для ConversationHandler
 CHOOSING, ADD_EXPENSE, CALCULATE_BUDGET = range(3)
+
+
+# Состояния для ConversationHandler
+CHOOSING, ADD_EXPENSE, CALCULATE_BUDGET, ADMIN_ADD_DATE, ADMIN_ADD_AMOUNT = range(5)
+
+# Команда /add для администраторов
+async def admin_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+
+    # Если команда вызвана с аргументами
+    args = context.args
+    if args and len(args) == 2:
+        try:
+            date_str, amount_str = args
+            # Преобразуем дату из DD.MM.YYYY в YYYY-MM-DD
+            date = datetime.strptime(date_str, "%d.%m.%Y").date()
+            amount = float(amount_str)
+
+            # Добавляем расход в базу данных
+            add_expense_with_date(user_id, amount, date)
+            await update.message.reply_text(f"Расход {amount:.2f} добавлен на дату {date.strftime('%d.%m.%Y')}.")
+            return ConversationHandler.END
+        except ValueError:
+            await update.message.reply_text("Неверный формат данных. Используйте: /add ДД.ММ.ГГГГ СУММА")
+            return ConversationHandler.END
+
+    # Если команда вызвана без аргументов
+    await update.message.reply_text("Введите дату в формате ДД.ММ.ГГГГ:")
+    return ADMIN_ADD_DATE
+
+
+# Обработка ввода даты
+async def admin_add_date_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        date_str = update.message.text
+        # Преобразуем дату из DD.MM.YYYY в YYYY-MM-DD
+        date = datetime.strptime(date_str, "%d.%m.%Y").date()
+        context.user_data['date'] = date
+        await update.message.reply_text("Введите сумму расхода:")
+        return ADMIN_ADD_AMOUNT
+    except ValueError:
+        await update.message.reply_text("Неверный формат даты. Введите дату в формате ДД.ММ.ГГГГ:")
+        return ADMIN_ADD_DATE
+
+
+# Обработка ввода суммы
+async def admin_add_amount_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        amount = float(update.message.text)
+        if amount <= 0:
+            raise ValueError()
+
+        date = context.user_data.get('date')
+        user_id = update.message.from_user.id
+
+        # Добавляем расход в базу данных
+        add_expense_with_date(user_id, amount, date)
+        await update.message.reply_text(f"Расход {amount:.2f} добавлен на дату {date.strftime('%d.%m.%Y')}.")
+    except ValueError:
+        await update.message.reply_text("Неверный формат суммы. Введите положительное число.")
+
+    return ConversationHandler.END
 
 # Тексты для справочной информации
 FINANCIAL_LITERACY_TEXT = """
@@ -49,6 +111,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()  # Подтверждаем обработку запроса
         await query.edit_message_text("Выберите действие:", reply_markup=reply_markup)
     else:
+        # Если команда /start вызвана повторно, отправляем новое сообщение
         await update.message.reply_text("Выберите действие:", reply_markup=reply_markup)
 
     return CHOOSING
@@ -63,7 +126,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "add_expense":
-        # Добавляем кнопку "Возврат в главное меню"
         await query.edit_message_text("Введите сумму расхода:")
         return ADD_EXPENSE
     elif data == "show_total":
@@ -86,7 +148,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(response, reply_markup=reply_markup)
         return CHOOSING
     elif data == "calculate_budget":
-        keyboard = [[InlineKeyboardButton("Возврат в главное меню 🏠", callback_data="main_menu")]]
         await query.edit_message_text("Введите общий бюджет на месяц:")
         return CALCULATE_BUDGET
     elif data == "info_menu":

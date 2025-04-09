@@ -1,5 +1,3 @@
-# database.py
-
 import sqlite3
 from datetime import datetime
 
@@ -24,6 +22,19 @@ def add_expense(user_id, amount):
     cursor = conn.cursor()
     current_date = datetime.now().strftime('%Y-%m-%d')  # Текущая дата
     cursor.execute('INSERT INTO expenses (user_id, amount, date) VALUES (?, ?, ?)', (user_id, amount, current_date))
+    conn.commit()
+    conn.close()
+
+# Добавление расхода с указанием даты
+def add_expense_with_date(user_id, amount, expense_date):
+    conn = sqlite3.connect('expenses.db')
+    cursor = conn.cursor()
+    # Преобразуем дату в формат YYYY-MM-DD
+    formatted_date = expense_date.strftime('%Y-%m-%d')
+    cursor.execute('''
+        INSERT INTO expenses (user_id, amount, date)
+        VALUES (?, ?, ?)
+    ''', (user_id, amount, formatted_date))
     conn.commit()
     conn.close()
 
