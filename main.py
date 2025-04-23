@@ -12,7 +12,7 @@ def main():
     init_db()
 
     # Создание приложения
-    application = ApplicationBuilder().token("7952771531:AAGDTEgkj2ux8sXcx4vQeKOIcIEiuprhswU").build()
+    application = ApplicationBuilder().token("7952771531:AAGyOkazlADcDAd8qccHd_fuU2QLeJyKWow").build()
 
     # Определение обработчиков
     conv_handler = ConversationHandler(
